@@ -6,7 +6,7 @@ CARGO = cargo
 CARGO_FLAGS = 
 RELEASE_FLAGS = --release
 
-.PHONY: all build run test clean dockerlint fmt check
+.PHONY: all build run test clean dockerlint fmt check release-dry-run release
 
 # Default target
 all: build
@@ -70,3 +70,20 @@ bloat: ## Analyze binary size
 build-prod: ## Create optimized production build
 	RUSTFLAGS="-C target-cpu=native -C opt-level=3" cargo build --release
 	strip target/release/$(BINARY_NAME)
+
+release-dry-run: ## Test the release process
+	cargo install cargo-dist
+	cargo dist plan
+
+release: ## Create and publish a new release
+	@if [ -z "$(VERSION)" ]; then \
+		echo "Please specify VERSION=x.x.x"; \
+		exit 1; \
+	fi
+	@if [ -n "`git status --porcelain`" ]; then \
+		echo "Working directory is not clean"; \
+		exit 1; \
+	fi
+	@echo "Creating release $(VERSION)"
+	@git tag -a v$(VERSION) -m "Release v$(VERSION)"
+	@git push origin v$(VERSION)

@@ -16,3 +16,10 @@ httpdate = "1.0"
 hyper = { version = "0.14", features = ["full"] }
 tokio = { version = "1", features = ["full"] }
 clap = { version = "4.4", features = ["derive"] }
+
+[workspace.metadata.dist]
+cargo-dist-version = "0.8.1"
+rust-toolchain-version = "1.75"
+targets = ["x86_64-unknown-linux-gnu", "x86_64-apple-darwin", "aarch64-apple-darwin"]
+ci = ["github"]
+installers = ["shell", "powershell"]
