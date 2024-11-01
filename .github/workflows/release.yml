@@ -47,7 +47,7 @@ jobs:
           - target: x86_64-pc-windows-msvc
             os: windows-latest
             asset_name: single-page-web-server-rs-windows-amd64.exe
-            binary_name: single-page-web-server.exe
+            binary_name: single-page-web-server-rs.exe
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
