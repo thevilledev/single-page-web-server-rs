@@ -4,9 +4,6 @@ use std::convert::Infallible;
 use std::fs;
 use std::net::SocketAddr;
 use std::sync::Arc;
-use md5;
-use httpdate;
-use std::cmp;
 use tokio::net::TcpSocket;
 use clap::Parser;
 
@@ -22,7 +19,7 @@ async fn handle_request(_req: Request<Body>, state: Arc<AppState>) -> Result<Res
         .header("Cache-Control", "public, max-age=31536000, immutable")
         // Provide ETag for validation (using a simple hash of content)
         .header("ETag", format!("\"{}\"", 
-            format!("{:x}", md5::compute(&state.html_content.as_bytes())).chars().take(8).collect::<String>()))
+            format!("{:x}", md5::compute(state.html_content.as_bytes())).chars().take(8).collect::<String>()))
         // Expires header as backup for HTTP/1.0 clients
         .header("Expires", httpdate::fmt_http_date(std::time::SystemTime::now() + 
             std::time::Duration::from_secs(31536000)))
@@ -55,17 +52,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let html_content = Arc::new(fs::read_to_string(&args.index_path)?);
     let state = Arc::new(AppState { html_content });
 
-    // Calculate optimal buffer size:
-    // - Minimum 16KB to handle TCP overhead efficiently
-    // - Maximum 1MB to prevent excessive memory usage
-    // - Target ~2x the file size for optimal throughput
-    let send_buffer_size = cmp::min(
-        1024 * 1024,  // 1MB max
-        cmp::max(
-            16 * 1024,  // 16KB min
-            state.html_content.len() * 2  // 2x file size
-        )
-    );
+    // Calculate optimal buffer size using clamp
+    let send_buffer_size = (state.html_content.len() * 2)
+        .clamp(16 * 1024, 1024 * 1024);  // Between 16KB and 1MB
 
     // Configure the server address
     let addr: SocketAddr = format!("{}:{}", args.addr, args.port)
