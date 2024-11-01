@@ -34,16 +34,16 @@ jobs:
         include:
           - target: x86_64-unknown-linux-gnu
             os: ubuntu-latest
-            asset_name: your_binary_name-linux-amd64
+            asset_name: single-web-page-server-rs-linux-amd64
           - target: x86_64-apple-darwin
             os: macos-latest
-            asset_name: your_binary_name-darwin-amd64
+            asset_name: single-web-page-server-rs-darwin-amd64
           - target: aarch64-apple-darwin
             os: macos-latest
-            asset_name: your_binary_name-darwin-arm64
+            asset_name: single-web-page-server-rs-darwin-arm64
           - target: x86_64-pc-windows-msvc
             os: windows-latest
-            asset_name: your_binary_name-windows-amd64.exe
+            asset_name: single-web-page-server-rs-windows-amd64.exe
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
