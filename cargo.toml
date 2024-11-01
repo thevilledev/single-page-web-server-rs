@@ -3,8 +3,16 @@ name = "single-page-web-server-rs"
 version = "0.1.0"
 edition = "2021"
 
+[profile.release]
+opt-level = 3
+lto = true
+codegen-units = 1
+panic = 'abort'
+strip = true
+
 [dependencies]
 md5 = "0.7"
 httpdate = "1.0"
 hyper = { version = "0.14", features = ["full"] }
 tokio = { version = "1", features = ["full"] }
+clap = { version = "4.4", features = ["derive"] }

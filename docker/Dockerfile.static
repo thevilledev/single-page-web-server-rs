@@ -1,0 +1,14 @@
+# Build stage
+FROM rust:1.75-alpine as builder
+WORKDIR /usr/src/app
+RUN apk add --no-cache musl-dev
+COPY . .
+RUN set -x && \
+    RUSTFLAGS="-C target-cpu=native" cargo build --release
+
+# Runtime stage - using scratch (empty) image
+FROM scratch
+COPY --from=builder /usr/src/app/target/release/single-page-web-server-rs /
+COPY index.html /
+ENTRYPOINT ["/single-page-web-server-rs"]
+CMD ["--addr", "0.0.0.0"]

@@ -8,6 +8,7 @@ use md5;
 use httpdate;
 use std::cmp;
 use tokio::net::TcpSocket;
+use clap::Parser;
 
 // Cache the HTML content in memory for maximum performance
 struct AppState {
@@ -29,10 +30,29 @@ async fn handle_request(_req: Request<Body>, state: Arc<AppState>) -> Result<Res
         .unwrap())
 }
 
+#[derive(Parser)]
+#[command(author, version, about, long_about = None)]
+struct Args {
+    /// Path to the index HTML file
+    #[arg(long, default_value = "index.html")]
+    index_path: String,
+
+    /// Port to listen on
+    #[arg(long, default_value_t = 3000)]
+    port: u16,
+
+    /// Address to bind to
+    #[arg(long, default_value = "127.0.0.1")]
+    addr: String,
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Parse command line arguments
+    let args = Args::parse();
+
     // Read the HTML file at startup and keep it in memory
-    let html_content = Arc::new(fs::read_to_string("index.html")?);
+    let html_content = Arc::new(fs::read_to_string(&args.index_path)?);
     let state = Arc::new(AppState { html_content });
 
     // Calculate optimal buffer size:
@@ -48,7 +68,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // Configure the server address
-    let addr = SocketAddr::from(([127, 0, 0, 1], 3000));
+    let addr: SocketAddr = format!("{}:{}", args.addr, args.port)
+        .parse()
+        .expect("Failed to parse address");
     let socket = if addr.is_ipv6() {
         TcpSocket::new_v6()?
     } else {
