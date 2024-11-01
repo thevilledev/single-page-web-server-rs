@@ -68,6 +68,7 @@ jobs:
       - name: Rename binary
         shell: bash
         run: |
+          ls -lR
           cd ./target/${{ matrix.target }}/release
           cp "${{ matrix.binary_name }}" "${{ matrix.asset_name }}"
 
