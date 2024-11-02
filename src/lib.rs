@@ -60,6 +60,16 @@ pub mod server {
     }
 
     pub async fn handle_request(req: Request<Body>, state: Arc<AppState>) -> Result<Response<Body>, Infallible> {
+        // Check If-None-Match header
+        if let Some(if_none_match) = req.headers().get("if-none-match") {
+            if if_none_match.to_str().unwrap_or("") == state.etag {
+                return Ok(Response::builder()
+                    .status(304)
+                    .body(Body::empty())
+                    .unwrap());
+            }
+        }
+
         // Check if client accepts gzip
         let use_compression = req.headers()
             .get("accept-encoding")
