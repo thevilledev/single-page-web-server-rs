@@ -6,7 +6,7 @@ use std::time::Duration;
 use tempfile::NamedTempFile;
 use tokio::time::sleep;
 
-use single_page_web_server_rs::{Args, AppState, handle_request};  // add your crate name
+use single_page_web_server_rs::{Args, AppState, handle_request};
 use hyper::Server;
 use hyper::service::{make_service_fn, service_fn};
 use std::convert::Infallible;
