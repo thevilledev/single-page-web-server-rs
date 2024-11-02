@@ -1,41 +1,34 @@
 # Build stage
 FROM --platform=$BUILDPLATFORM rust:1.75-slim AS builder
 WORKDIR /usr/src/app
+
+# Install build dependencies
 RUN set -x && \
     apt-get update && \
     apt-get install -y musl-tools
+
+# Copy source files
 COPY . .
 
-# Install cross-compilation tools based on target architecture
+# Set up target architecture variables
 ARG TARGETARCH
+ARG RUST_TARGET=""
 RUN case "${TARGETARCH}" in \
-        "amd64")  TARGET="x86_64-unknown-linux-musl" ;; \
-        "arm64")  TARGET="aarch64-unknown-linux-musl" ;; \
-        *)        TARGET="x86_64-unknown-linux-musl" ;; \
+        "amd64") echo "x86_64-unknown-linux-musl" > /tmp/rust_target ;; \
+        "arm64") echo "aarch64-unknown-linux-musl" > /tmp/rust_target ;; \
+        *) echo "x86_64-unknown-linux-musl" > /tmp/rust_target ;; \
     esac && \
-    rustup target add $TARGET
-
-# Build for the target architecture
-ARG TARGETARCH
-RUN case "${TARGETARCH}" in \
-        "amd64")  cargo build --release --target x86_64-unknown-linux-musl ;; \
-        "arm64")  cargo build --release --target aarch64-unknown-linux-musl ;; \
-        *)        cargo build --release --target x86_64-unknown-linux-musl ;; \
-    esac
+    RUST_TARGET=$(cat /tmp/rust_target) && \
+    rustup target add $RUST_TARGET && \
+    cargo build --release --target $RUST_TARGET
 
 # Runtime stage
 FROM scratch
+
+# Copy the binary using a simpler architecture-specific pattern
 ARG TARGETARCH
-COPY --from=builder \
-    /usr/src/app/target/$( \
-        if [ "$TARGETARCH" = "amd64" ]; then \
-            echo "x86_64-unknown-linux-musl"; \
-        elif [ "$TARGETARCH" = "arm64" ]; then \
-            echo "aarch64-unknown-linux-musl"; \
-        else \
-            echo "x86_64-unknown-linux-musl"; \
-        fi \
-    )/release/single-page-web-server-rs /
+COPY --from=builder /usr/src/app/target/$([ "$TARGETARCH" = "arm64" ] && echo "aarch64" || echo "x86_64")-unknown-linux-musl/release/single-page-web-server-rs /
 COPY index.html /
+
 ENTRYPOINT ["/single-page-web-server-rs"]
 CMD ["--addr", "0.0.0.0"]
