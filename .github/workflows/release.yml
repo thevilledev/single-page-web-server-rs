@@ -68,7 +68,6 @@ jobs:
       - name: Rename binary
         shell: bash
         run: |
-          ls -lR
           cd ./target/${{ matrix.target }}/release
           cp "${{ matrix.binary_name }}" "${{ matrix.asset_name }}"
 
@@ -118,7 +117,7 @@ jobs:
         with:
           context: .
           file: docker/Dockerfile.static
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/amd64,linux/arm64,linux/arm/v7,darwin/amd64,darwin/arm64,windows/amd64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
