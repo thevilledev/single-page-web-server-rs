@@ -2,9 +2,18 @@ use clap::Parser;
 use hyper::{Body, Request, Response};
 use std::convert::Infallible;
 use std::sync::Arc;
+use flate2::write::GzEncoder;
+use flate2::Compression;
+use std::io::Write;
 
 pub use crate::server::{AppState, handle_request};
 pub use crate::cli::Args;
+
+fn compress_content(content: &str) -> Vec<u8> {
+    let mut encoder = GzEncoder::new(Vec::new(), Compression::best());
+    encoder.write_all(content.as_bytes()).unwrap();
+    encoder.finish().unwrap()
+}
 
 pub mod cli {
     use super::*;
@@ -31,20 +40,53 @@ pub mod server {
 
     pub struct AppState {
         pub html_content: Arc<String>,
+        pub etag: String,         // Pre-compute ETag
+        pub content_length: usize, // Pre-compute content length
+        pub compressed: Arc<Vec<u8>>, // Pre-compressed content
     }
 
-    pub async fn handle_request(_req: Request<Body>, state: Arc<AppState>) -> Result<Response<Body>, Infallible> {
-        Ok(Response::builder()
+    impl AppState {
+        pub fn new(content: String) -> Self {
+            let digest = md5::compute(&content);
+            let etag = format!("\"{:x}\"", digest);
+            let compressed = Arc::new(compress_content(&content));
+            AppState {
+                content_length: content.len(),
+                etag,
+                compressed,
+                html_content: Arc::new(content),
+            }
+        }
+    }
+
+    pub async fn handle_request(req: Request<Body>, state: Arc<AppState>) -> Result<Response<Body>, Infallible> {
+        // Check if client accepts gzip
+        let use_compression = req.headers()
+            .get("accept-encoding")
+            .and_then(|val| val.to_str().ok())
+            .map_or(false, |val| val.contains("gzip"));
+
+        let mut builder = Response::builder()
             .header("Content-Type", "text/html")
-            // Cache for 1 year (31536000 seconds)
             .header("Cache-Control", "public, max-age=31536000, immutable")
-            // Provide ETag for validation (using a simple hash of content)
-            .header("ETag", format!("\"{}\"", 
-                format!("{:x}", md5::compute(state.html_content.as_bytes())).chars().take(8).collect::<String>()))
-            // Expires header as backup for HTTP/1.0 clients
-            .header("Expires", httpdate::fmt_http_date(std::time::SystemTime::now() + 
-                std::time::Duration::from_secs(31536000)))
-            .body(Body::from(state.html_content.as_bytes().to_vec()))
+            .header("ETag", &state.etag)
+            .header("Content-Length", if use_compression {
+                state.compressed.len()
+            } else {
+                state.content_length
+            });
+
+        // Add compression header if used
+        if use_compression {
+            builder = builder.header("Content-Encoding", "gzip");
+        }
+
+        Ok(builder
+            .body(Body::from(if use_compression {
+                state.compressed.as_ref().clone()
+            } else {
+                state.html_content.as_bytes().to_vec()
+            }))
             .unwrap())
     }
 }

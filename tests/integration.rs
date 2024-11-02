@@ -28,8 +28,8 @@ async fn test_server_basic_functionality() -> Result<(), Box<dyn std::error::Err
             addr: "127.0.0.1".to_string(),
         };
 
-        let html_content = Arc::new(fs::read_to_string(&args.index_path).unwrap());
-        let state = Arc::new(AppState { html_content });
+        let html_content = fs::read_to_string(&args.index_path).unwrap();
+        let state = Arc::new(AppState::new(html_content));
         
         let addr: SocketAddr = addr.parse().unwrap();
         let make_svc = make_service_fn(move |_conn| {
@@ -76,9 +76,6 @@ async fn test_server_basic_functionality() -> Result<(), Box<dyn std::error::Err
     // Verify ETag exists
     assert!(response.headers().contains_key("etag"));
 
-    // Verify Expires header exists and is roughly one year in the future
-    assert!(response.headers().contains_key("expires"));
-
     // Get response body
     let body_bytes = hyper::body::to_bytes(response.into_body()).await?;
     let body_string = String::from_utf8(body_bytes.to_vec())?;
@@ -109,8 +106,8 @@ async fn test_server_different_port_and_address() -> Result<(), Box<dyn std::err
             addr: "127.0.0.1".to_string(),
         };
 
-        let html_content = Arc::new(fs::read_to_string(&args.index_path).unwrap());
-        let state = Arc::new(AppState { html_content });
+        let html_content = fs::read_to_string(&args.index_path).unwrap();
+        let state = Arc::new(AppState::new(html_content));
         
         let addr: SocketAddr = addr.parse().unwrap();
         let make_svc = make_service_fn(move |_conn| {

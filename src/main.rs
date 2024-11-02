@@ -15,8 +15,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args = Args::parse();
 
     // Read the HTML file at startup and keep it in memory
-    let html_content = Arc::new(fs::read_to_string(&args.index_path)?);
-    let state = Arc::new(AppState { html_content });
+    let html_content = fs::read_to_string(&args.index_path)?;
+    let state = Arc::new(AppState::new(html_content));
 
     // Calculate optimal buffer size using clamp
     let send_buffer_size = (state.html_content.len() * 2)
