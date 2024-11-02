@@ -6,7 +6,7 @@ CARGO = cargo
 CARGO_FLAGS = 
 RELEASE_FLAGS = --release
 
-.PHONY: all build run test clean dockerlint fmt check release-dry-run release
+.PHONY: all build release-build run test clean dockerlint fmt check release-dry-run release
 
 # Default target
 all: build
@@ -16,7 +16,7 @@ build: ## Build the development binary
 	$(CARGO) build $(CARGO_FLAGS)
 
 # Release build
-release: ## Build the release binary
+release-build: ## Build the release binary
 	$(CARGO) build $(RELEASE_FLAGS)
 
 # Run the development server
