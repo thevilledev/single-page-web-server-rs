@@ -10,29 +10,20 @@ RUN set -x && \
 # Copy source files
 COPY . .
 
-# Set up target architecture variables
+# Set up target architecture variables and build
 ARG TARGETARCH
-ENV RUST_TARGET=""
 RUN case "${TARGETARCH}" in \
-        "amd64") echo "x86_64-unknown-linux-musl" > /tmp/rust_target ;; \
-        "arm64") echo "aarch64-unknown-linux-musl" > /tmp/rust_target ;; \
-        *) echo "x86_64-unknown-linux-musl" > /tmp/rust_target ;; \
+        "amd64") RUST_TARGET="x86_64-unknown-linux-musl" ;; \
+        "arm64") RUST_TARGET="aarch64-unknown-linux-musl" ;; \
+        *) RUST_TARGET="x86_64-unknown-linux-musl" ;; \
     esac && \
-    RUST_TARGET=$(cat /tmp/rust_target) && \
-    rustup target add $RUST_TARGET && \
-    cargo build --release --target $RUST_TARGET
+    rustup target add ${RUST_TARGET} && \
+    cargo build --release --target ${RUST_TARGET} && \
+    cp target/${RUST_TARGET}/release/single-page-web-server-rs /usr/src/app/single-page-web-server-rs
 
 # Runtime stage
 FROM scratch
-
-# Copy binary - split into two separate stages to handle different architectures
-COPY --from=builder /usr/src/app/target/x86_64-unknown-linux-musl/release/single-page-web-server-rs /single-page-web-server-rs-amd64
-COPY --from=builder /usr/src/app/target/aarch64-unknown-linux-musl/release/single-page-web-server-rs /single-page-web-server-rs-arm64
-
-# Use multi-stage build to select the correct binary
-FROM scratch
-ARG TARGETARCH
-COPY --from=1 /single-page-web-server-rs-${TARGETARCH} /single-page-web-server-rs
+COPY --from=builder /usr/src/app/single-page-web-server-rs /
 COPY index.html /
 
 ENTRYPOINT ["/single-page-web-server-rs"]
