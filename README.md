@@ -22,7 +22,7 @@ foo
 
 Pre-built binaries are available in the [releases](https://github.com/thevilledev/single-page-web-server-rs/releases) page for the following platforms:
 
-- Linux (ARM64 and x86_64)
+- Linux (x86_64)
 - macOS (Intel and Apple Silicon)
 - Windows (x86_64)
 
