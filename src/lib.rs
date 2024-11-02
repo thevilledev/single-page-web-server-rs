@@ -18,7 +18,7 @@ fn compress_content(content: &str) -> Vec<u8> {
 pub mod cli {
     use super::*;
 
-    #[derive(Parser)]
+    #[derive(Parser, Debug)]
     #[command(author, version, about, long_about = None)]
     pub struct Args {
         /// Path to the index HTML file
