@@ -5,29 +5,38 @@ WORKDIR /usr/src/app
 # Install build dependencies
 RUN set -x && \
     apt-get update && \
-    apt-get install -y musl-tools
+    apt-get install -y \
+    musl-tools \
+    gcc-aarch64-linux-gnu \
+    g++-aarch64-linux-gnu \
+    libc6-dev-arm64-cross
 
 # Copy source files
 COPY . .
 
-# Set up target architecture variables
+# Set up target architecture variables and build
 ARG TARGETARCH
-ARG RUST_TARGET=""
 RUN case "${TARGETARCH}" in \
-        "amd64") echo "x86_64-unknown-linux-musl" > /tmp/rust_target ;; \
-        "arm64") echo "aarch64-unknown-linux-musl" > /tmp/rust_target ;; \
-        *) echo "x86_64-unknown-linux-musl" > /tmp/rust_target ;; \
+        "amd64") \
+            RUST_TARGET="x86_64-unknown-linux-musl" \
+            ;; \
+        "arm64") \
+            RUST_TARGET="aarch64-unknown-linux-musl" && \
+            export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_MUSL_LINKER=aarch64-linux-gnu-gcc && \
+            export CC_aarch64_unknown_linux_musl=aarch64-linux-gnu-gcc && \
+            export CXX_aarch64_unknown_linux_musl=aarch64-linux-gnu-g++ \
+            ;; \
+        *) \
+            RUST_TARGET="x86_64-unknown-linux-musl" \
+            ;; \
     esac && \
-    RUST_TARGET=$(cat /tmp/rust_target) && \
-    rustup target add $RUST_TARGET && \
-    cargo build --release --target $RUST_TARGET
+    rustup target add ${RUST_TARGET} && \
+    cargo build --release --target ${RUST_TARGET} && \
+    cp target/${RUST_TARGET}/release/single-page-web-server-rs /usr/src/app/single-page-web-server-rs
 
 # Runtime stage
 FROM scratch
-
-# Copy the binary using a simpler architecture-specific pattern
-ARG TARGETARCH
-COPY --from=builder /usr/src/app/target/$([ "$TARGETARCH" = "arm64" ] && echo "aarch64" || echo "x86_64")-unknown-linux-musl/release/single-page-web-server-rs /
+COPY --from=builder /usr/src/app/single-page-web-server-rs /
 COPY index.html /
 
 ENTRYPOINT ["/single-page-web-server-rs"]
