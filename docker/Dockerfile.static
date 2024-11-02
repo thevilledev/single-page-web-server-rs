@@ -26,12 +26,16 @@ RUN case "${TARGETARCH}" in \
 # Runtime stage
 FROM scratch
 ARG TARGETARCH
-COPY --from=builder /usr/src/app/target/\
-$(case "${TARGETARCH}" in \
-    "amd64") echo "x86_64-unknown-linux-musl" ;; \
-    "arm64") echo "aarch64-unknown-linux-musl" ;; \
-    *)       echo "x86_64-unknown-linux-musl" ;; \
-esac)/release/single-page-web-server-rs /
+COPY --from=builder \
+    /usr/src/app/target/$( \
+        if [ "$TARGETARCH" = "amd64" ]; then \
+            echo "x86_64-unknown-linux-musl"; \
+        elif [ "$TARGETARCH" = "arm64" ]; then \
+            echo "aarch64-unknown-linux-musl"; \
+        else \
+            echo "x86_64-unknown-linux-musl"; \
+        fi \
+    )/release/single-page-web-server-rs /
 COPY index.html /
 ENTRYPOINT ["/single-page-web-server-rs"]
 CMD ["--addr", "0.0.0.0"]
