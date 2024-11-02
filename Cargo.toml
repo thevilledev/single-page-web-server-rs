@@ -15,7 +15,7 @@ md5 = "0.7"
 httpdate = "1.0"
 hyper = { version = "0.14", features = ["full"] }
 tokio = { version = "1", features = ["full"] }
-clap = { version = "4.4", features = ["derive"] }
+clap = { version = "4.4", features = ["derive", "env"] }
 
 [workspace.metadata.dist]
 cargo-dist-version = "0.8.1"

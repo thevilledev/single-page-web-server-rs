@@ -31,15 +31,15 @@ async fn handle_request(_req: Request<Body>, state: Arc<AppState>) -> Result<Res
 #[command(author, version, about, long_about = None)]
 struct Args {
     /// Path to the index HTML file
-    #[arg(long, default_value = "index.html")]
+    #[arg(long, default_value = "index.html", env="INDEX_PATH")]
     index_path: String,
 
     /// Port to listen on
-    #[arg(long, default_value_t = 3000)]
+    #[arg(long, default_value_t = 3000, env="LISTEN_PORT")]
     port: u16,
 
     /// Address to bind to
-    #[arg(long, default_value = "127.0.0.1")]
+    #[arg(long, default_value = "127.0.0.1", env="LISTEN_ADDR")]
     addr: String,
 }
 
