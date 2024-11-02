@@ -1,14 +1,42 @@
 # Build stage
-FROM rust:1.75-alpine AS builder
+FROM --platform=$BUILDPLATFORM rust:1.75-slim AS builder
 WORKDIR /usr/src/app
-RUN apk add --no-cache musl-dev
-COPY . .
 RUN set -x && \
-    RUSTFLAGS="-C target-cpu=native" cargo build --release
+    apt-get update && \
+    apt-get install -y musl-tools
+COPY . .
 
-# Runtime stage - using scratch (empty) image
+# Install cross-compilation tools based on target architecture
+ARG TARGETARCH TARGETOS
+RUN case "$TARGETOS/$TARGETARCH" in \
+        "linux/amd64")  TARGET="x86_64-unknown-linux-musl" ;; \
+        "linux/arm64")  TARGET="aarch64-unknown-linux-musl" ;; \
+        "darwin/amd64") TARGET="x86_64-apple-darwin" ;; \
+        "darwin/arm64") TARGET="aarch64-apple-darwin" ;; \
+        *)             TARGET="x86_64-unknown-linux-musl" ;; \
+    esac && \
+    rustup target add $TARGET
+
+# Build for the target architecture
+ARG TARGETARCH TARGETOS
+RUN case "$TARGETOS/$TARGETARCH" in \
+        "linux/amd64")  cargo build --release --target x86_64-unknown-linux-musl ;; \
+        "linux/arm64")  cargo build --release --target aarch64-unknown-linux-musl ;; \
+        "darwin/amd64") cargo build --release --target x86_64-apple-darwin ;; \
+        "darwin/arm64") cargo build --release --target aarch64-apple-darwin ;; \
+        *)             cargo build --release --target x86_64-unknown-linux-musl ;; \
+    esac
+
+# Runtime stage
 FROM scratch
-COPY --from=builder /usr/src/app/target/release/single-page-web-server-rs /
+ARG TARGETARCH TARGETOS
+COPY --from=builder /usr/src/app/target/${TARGETOS:+"$(case "$TARGETOS/$TARGETARCH" in \
+        "linux/amd64")  echo "x86_64-unknown-linux-musl" ;; \
+        "linux/arm64")  echo "aarch64-unknown-linux-musl" ;; \
+        "darwin/amd64") echo "x86_64-apple-darwin" ;; \
+        "darwin/arm64") echo "aarch64-apple-darwin" ;; \
+        *)             echo "x86_64-unknown-linux-musl" ;; \
+    esac)"}/release/single-page-web-server-rs /
 COPY index.html /
 ENTRYPOINT ["/single-page-web-server-rs"]
 CMD ["--addr", "0.0.0.0"]
