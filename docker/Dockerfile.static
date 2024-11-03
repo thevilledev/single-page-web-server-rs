@@ -1,5 +1,5 @@
 # Build stage
-FROM --platform=$BUILDPLATFORM rust:1.75-slim AS builder
+FROM --platform=$BUILDPLATFORM rust:1.82-slim AS builder
 WORKDIR /usr/src/app
 
 # Install build dependencies
@@ -37,7 +37,7 @@ RUN case "${TARGETARCH}" in \
 # Runtime stage
 FROM scratch
 COPY --from=builder /usr/src/app/single-page-web-server-rs /
-COPY index.html /
+COPY static/index.html /
 
 ENTRYPOINT ["/single-page-web-server-rs"]
 CMD ["--addr", "0.0.0.0"]
