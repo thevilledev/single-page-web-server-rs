@@ -114,7 +114,7 @@ async fn test_server_basic_functionality() -> Result<(), Box<dyn std::error::Err
     // Verify cache control header
     assert_eq!(
         response.headers().get("cache-control").unwrap(),
-        "public, max-age=31536000, immutable"
+        "public, max-age=3600, must-revalidate"
     );
 
     // Verify ETag exists
