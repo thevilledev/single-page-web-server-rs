@@ -15,22 +15,25 @@ use tracing::{info, error};
 pub use crate::cli::Args;
 
 pub struct AppState {
-    pub html_content: String,
     pub etag: Box<str>,
-    pub content_length: usize,
-    pub compressed: Bytes,
+    pub compressed_content_length: usize,
+    pub compressed_content: Bytes,
+    pub uncompressed_content: Bytes,
+    pub uncompressed_content_length: usize,
 }
 
 impl AppState {
     pub fn new(content: String) -> Self {
         let digest = md5::compute(&content);
         let etag = format!("\"{:x}\"", digest).into_boxed_str();
-        let compressed = Bytes::from(compress_content(&content));
+        let compressed_content = Bytes::from(compress_content(&content));
+        let uncompressed_content = Bytes::from(content.into_bytes());
         AppState {
-            content_length: content.len(),
+            compressed_content_length: compressed_content.len(),
+            uncompressed_content_length: uncompressed_content.len(),
             etag,
-            compressed,
-            html_content: content,
+            compressed_content,
+            uncompressed_content,
         }
     }
 }
@@ -45,7 +48,7 @@ fn compress_content(content: &str) -> Vec<u8> {
 pub async fn handle_request(req: Request<Body>, state: Arc<AppState>) -> Result<Response<Body>, Infallible> {
     // Check If-None-Match header
     if let Some(if_none_match) = req.headers().get("if-none-match") {
-        if if_none_match.to_str().unwrap_or("").as_bytes() == state.etag.as_bytes() {
+        if if_none_match.as_bytes().eq_ignore_ascii_case(&state.etag.as_bytes()) {
             return Ok(Response::builder()
                 .status(304)
                 .body(Body::empty())
@@ -64,9 +67,9 @@ pub async fn handle_request(req: Request<Body>, state: Arc<AppState>) -> Result<
         .header("Cache-Control", "public, max-age=31536000, immutable")
         .header("ETag", state.etag.as_bytes())
         .header("Content-Length", if use_compression {
-            state.compressed.len()
+            state.compressed_content_length
         } else {
-            state.content_length
+            state.uncompressed_content_length
         });
 
     // Add compression header if used
@@ -76,9 +79,9 @@ pub async fn handle_request(req: Request<Body>, state: Arc<AppState>) -> Result<
 
     Ok(builder
         .body(Body::from(if use_compression {
-            state.compressed.clone()
+            state.compressed_content.clone()
         } else {
-            Bytes::from(state.html_content.as_bytes().to_vec())
+            state.uncompressed_content.clone()
         }))
         .unwrap())
 }
@@ -93,7 +96,7 @@ pub async fn run_server(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     let state = Arc::new(AppState::new(html_content));
 
     // Calculate optimal buffer size using clamp
-    let send_buffer_size = (state.html_content.len() * 2)
+    let send_buffer_size = (state.uncompressed_content_length * 2)
         .clamp(16 * 1024, 1024 * 1024);  // Between 16KB and 1MB
 
     // Configure the server address
@@ -125,6 +128,9 @@ pub async fn run_server(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         .http1_keepalive(true)
         .http2_keep_alive_interval(Some(std::time::Duration::from_secs(5)))
         .tcp_nodelay(true)
+        .http2_initial_stream_window_size(1024 * 1024)
+        .http2_initial_connection_window_size(1024 * 1024 * 2)
+        .http2_adaptive_window(true)
         .serve(make_svc);
 
     info!("Server running on http://{}", addr);
