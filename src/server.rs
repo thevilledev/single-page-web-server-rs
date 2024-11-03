@@ -48,7 +48,7 @@ fn compress_content(content: &str) -> Vec<u8> {
 pub async fn handle_request(req: Request<Body>, state: Arc<AppState>) -> Result<Response<Body>, Infallible> {
     // Check If-None-Match header
     if let Some(if_none_match) = req.headers().get("if-none-match") {
-        if if_none_match.as_bytes().eq_ignore_ascii_case(&state.etag.as_bytes()) {
+        if if_none_match.as_bytes().eq_ignore_ascii_case(state.etag.as_bytes()) {
             return Ok(Response::builder()
                 .status(304)
                 .body(Body::empty())
