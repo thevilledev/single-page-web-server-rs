@@ -14,12 +14,13 @@ use tracing::{info, error};
 
 pub use crate::cli::Args;
 
+#[repr(align(64))]
 pub struct AppState {
-    pub etag: Box<str>,
-    pub compressed_content_length: usize,
-    pub compressed_content: Bytes,
-    pub uncompressed_content: Bytes,
-    pub uncompressed_content_length: usize,
+    pub etag: Box<str>,                     // 16 bytes
+    pub compressed_content_length: usize,   // 8 bytes
+    pub uncompressed_content_length: usize, // 8 bytes
+    pub compressed_content: Bytes,          // 32 bytes
+    pub uncompressed_content: Bytes,        // 32 bytes
 }
 
 impl AppState {
@@ -64,7 +65,7 @@ pub async fn handle_request(req: Request<Body>, state: Arc<AppState>) -> Result<
 
     let mut builder = Response::builder()
         .header("Content-Type", "text/html")
-        .header("Cache-Control", "public, max-age=31536000, immutable")
+        .header("Cache-Control", "public, max-age=3600, must-revalidate")
         .header("ETag", state.etag.as_bytes())
         .header("Content-Length", if use_compression {
             state.compressed_content_length
