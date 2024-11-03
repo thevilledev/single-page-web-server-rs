@@ -6,11 +6,54 @@ use std::time::Duration;
 use tempfile::NamedTempFile;
 use tokio::time::sleep;
 
-use single_page_web_server_rs::{cli::Args, server::{AppState, handle_request}};
+use single_page_web_server_rs::{cli::Args, server::{AppState, run_server, handle_request}};
 use hyper::Server;
 use hyper::service::{make_service_fn, service_fn};
 use std::convert::Infallible;
 use hyper::{Request, Body};
+
+
+#[tokio::test]
+async fn test_server_run() -> Result<(), Box<dyn std::error::Error>> {
+    // Create a temporary HTML file
+    let temp_file = NamedTempFile::new()?;
+    let test_content = "<html><body>Test Content</body></html>";
+    fs::write(&temp_file, test_content)?;
+
+    // Start server in background task
+    let server_handle = tokio::spawn(async move {
+        let args = Args {
+            index_path: temp_file.path().to_str().unwrap().to_string(),
+            port: 3000,
+            addr: "127.0.0.1".to_string(),
+        };
+        run_server(args).await.unwrap();
+    });
+
+    // Give the server a moment to start
+    sleep(Duration::from_millis(100)).await;
+
+    // Create a client
+    let client = Client::new();
+
+    // Test basic GET request
+    let response = client
+        .get("http://127.0.0.1:3000".parse()?)
+        .await?;
+
+    // Verify response
+    assert_eq!(response.status(), 200);
+
+    // Verify content
+    let body_bytes = hyper::body::to_bytes(response.into_body()).await?;
+    let body_string = String::from_utf8(body_bytes.to_vec())?;
+    assert_eq!(body_string, test_content);
+
+    // Clean up
+    server_handle.abort();
+
+    Ok(())
+}
 
 #[tokio::test]
 async fn test_server_basic_functionality() -> Result<(), Box<dyn std::error::Error>> {
