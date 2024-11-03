@@ -39,9 +39,9 @@ impl AppState {
     }
 }
 
-
+#[inline]
 fn compress_content(content: &str) -> Vec<u8> {
-    let mut encoder = GzEncoder::new(Vec::new(), Compression::best());
+    let mut encoder = GzEncoder::new(Vec::with_capacity(content.len()), Compression::best());
     encoder.write_all(content.as_bytes()).unwrap();
     encoder.finish().unwrap()
 }
@@ -49,7 +49,7 @@ fn compress_content(content: &str) -> Vec<u8> {
 pub async fn handle_request(req: Request<Body>, state: Arc<AppState>) -> Result<Response<Body>, Infallible> {
     // Check If-None-Match header
     if let Some(if_none_match) = req.headers().get("if-none-match") {
-        if if_none_match.as_bytes().eq_ignore_ascii_case(state.etag.as_bytes()) {
+        if if_none_match.as_bytes() == state.etag.as_bytes() {
             return Ok(Response::builder()
                 .status(304)
                 .body(Body::empty())
@@ -98,7 +98,7 @@ pub async fn run_server(args: Args) -> Result<(), Box<dyn std::error::Error>> {
 
     // Calculate optimal buffer size using clamp
     let send_buffer_size = (state.uncompressed_content_length * 2)
-        .clamp(16 * 1024, 1024 * 1024);  // Between 16KB and 1MB
+        .clamp(32 * 1024, 2* 1024 * 1024);  // Between 32KB and 2MB
 
     // Configure the server address
     let addr: SocketAddr = format!("{}:{}", args.addr, args.port)
@@ -112,7 +112,7 @@ pub async fn run_server(args: Args) -> Result<(), Box<dyn std::error::Error>> {
 
     // Set optimized buffer sizes
     socket.set_send_buffer_size(send_buffer_size.try_into().unwrap())?;
-    socket.set_recv_buffer_size(16 * 1024)?; // Keep receive buffer modest since we expect small requests
+    socket.set_recv_buffer_size(32 * 1024)?; // Keep receive buffer modest since we expect small requests
 
     // Create the service
     let make_svc = make_service_fn(move |_conn| {
@@ -129,8 +129,8 @@ pub async fn run_server(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         .http1_keepalive(true)
         .http2_keep_alive_interval(Some(std::time::Duration::from_secs(5)))
         .tcp_nodelay(true)
-        .http2_initial_stream_window_size(1024 * 1024)
-        .http2_initial_connection_window_size(1024 * 1024 * 2)
+        .http2_initial_stream_window_size(2 * 1024 * 1024)
+        .http2_initial_connection_window_size(4 * 1024 * 1024)
         .http2_adaptive_window(true)
         .serve(make_svc);
 
