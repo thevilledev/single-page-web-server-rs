@@ -4,20 +4,22 @@ use single_page_web_server_rs::cli::Args;
 
 #[test]
 fn test_args() -> Result<(), Box<dyn std::error::Error>> {
-    let args = Args::try_parse_from(&["program"]).unwrap();
-    assert_eq!(args.port, 3000);
-    assert_eq!(args.addr, "127.0.0.1");
-    assert_eq!(args.index_path, "index.html");
+    temp_env::with_vars_unset(&["WEB_PORT", "WEB_ADDR", "WEB_INDEX_PATH"], || {
+        let args = Args::try_parse_from(&["program"]).unwrap();
+        assert_eq!(args.port, 3000);
+        assert_eq!(args.addr, "127.0.0.1");
+        assert_eq!(args.index_path, "index.html");
 
-    let args = Args::try_parse_from(&["program", "--port", "8080"]).unwrap();
-    assert_eq!(args.port, 8080);
-    assert_eq!(args.addr, "127.0.0.1");
-    assert_eq!(args.index_path, "index.html");
+        let args = Args::try_parse_from(&["program", "--port", "8080"]).unwrap();
+        assert_eq!(args.port, 8080);
+        assert_eq!(args.addr, "127.0.0.1");
+        assert_eq!(args.index_path, "index.html");
 
-    let args = Args::try_parse_from(&["program", "--addr", "0.0.0.0", "--port", "8080"]).unwrap();
-    assert_eq!(args.port, 8080);
-    assert_eq!(args.addr, "0.0.0.0");
-    assert_eq!(args.index_path, "index.html");
+        let args = Args::try_parse_from(&["program", "--addr", "0.0.0.0", "--port", "8080"]).unwrap();
+        assert_eq!(args.port, 8080);
+        assert_eq!(args.addr, "0.0.0.0");
+        assert_eq!(args.index_path, "index.html");
+    });
 
     Ok(())
 }
