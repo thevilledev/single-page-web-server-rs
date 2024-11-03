@@ -4,13 +4,8 @@ extern crate bencher;
 use bencher::Bencher;
 
 use hyper::Client;
-use hyper::Server;
-use hyper::service::{make_service_fn, service_fn};
-use single_page_web_server_rs::{cli::Args, server::{AppState, handle_request}};
-use std::convert::Infallible;
+use single_page_web_server_rs::{cli::Args, server::run_server};
 use std::fs;
-use std::net::SocketAddr;
-use std::sync::Arc;
 use std::time::Duration;
 use tempfile::NamedTempFile;
 use tokio::time::sleep;
@@ -26,7 +21,6 @@ fn bench_server_response_time(b: &mut Bencher) {
     });
 
     let test_port = 3005;
-    let addr = format!("127.0.0.1:{}", test_port);
     
     // Start server
     let server_handle = runtime.spawn(async move {
@@ -35,22 +29,8 @@ fn bench_server_response_time(b: &mut Bencher) {
             port: test_port,
             addr: "127.0.0.1".to_string(),
         };
-
-        let html_content = fs::read_to_string(&args.index_path).unwrap();
-        let state = Arc::new(AppState::new(html_content));
         
-        let addr: SocketAddr = addr.parse().unwrap();
-        let make_svc = make_service_fn(move |_conn| {
-            let state = state.clone();
-            async move {
-                Ok::<_, Infallible>(service_fn(move |req| {
-                    handle_request(req, state.clone())
-                }))
-            }
-        });
-
-        Server::bind(&addr)
-            .serve(make_svc)
+        run_server(args)
             .await
             .unwrap();
     });
