@@ -1,36 +1,36 @@
-use hyper::{Body, Request, Response};
-use std::convert::Infallible;
-use std::sync::Arc;
-use flate2::write::GzEncoder;
 use flate2::Compression;
+use flate2::write::GzEncoder;
+use hyper::Server;
+use hyper::service::{make_service_fn, service_fn};
+use hyper::{Body, Request, Response};
+use hyper::body::Bytes;
+use std::convert::Infallible;
 use std::io::Write;
+use std::net::SocketAddr;
+use std::sync::Arc;
+use tokio::net::TcpSocket;
 use tokio::signal;
+use tracing::{info, error};
 
 pub use crate::cli::Args;
 
-use hyper::Server;
-use hyper::service::{make_service_fn, service_fn};
-use std::net::SocketAddr;
-use tokio::net::TcpSocket;
-use tracing::{info, error};
-
 pub struct AppState {
-    pub html_content: Arc<String>,
-    pub etag: String,
+    pub html_content: String,
+    pub etag: Box<str>,
     pub content_length: usize,
-    pub compressed: Arc<Vec<u8>>,
+    pub compressed: Bytes,
 }
 
 impl AppState {
     pub fn new(content: String) -> Self {
         let digest = md5::compute(&content);
-        let etag = format!("\"{:x}\"", digest);
-        let compressed = Arc::new(compress_content(&content));
+        let etag = format!("\"{:x}\"", digest).into_boxed_str();
+        let compressed = Bytes::from(compress_content(&content));
         AppState {
             content_length: content.len(),
             etag,
             compressed,
-            html_content: Arc::new(content),
+            html_content: content,
         }
     }
 }
@@ -45,7 +45,7 @@ fn compress_content(content: &str) -> Vec<u8> {
 pub async fn handle_request(req: Request<Body>, state: Arc<AppState>) -> Result<Response<Body>, Infallible> {
     // Check If-None-Match header
     if let Some(if_none_match) = req.headers().get("if-none-match") {
-        if if_none_match.to_str().unwrap_or("") == state.etag {
+        if if_none_match.to_str().unwrap_or("").as_bytes() == state.etag.as_bytes() {
             return Ok(Response::builder()
                 .status(304)
                 .body(Body::empty())
@@ -62,7 +62,7 @@ pub async fn handle_request(req: Request<Body>, state: Arc<AppState>) -> Result<
     let mut builder = Response::builder()
         .header("Content-Type", "text/html")
         .header("Cache-Control", "public, max-age=31536000, immutable")
-        .header("ETag", &state.etag)
+        .header("ETag", state.etag.as_bytes())
         .header("Content-Length", if use_compression {
             state.compressed.len()
         } else {
@@ -76,9 +76,9 @@ pub async fn handle_request(req: Request<Body>, state: Arc<AppState>) -> Result<
 
     Ok(builder
         .body(Body::from(if use_compression {
-            state.compressed.as_ref().clone()
+            state.compressed.clone()
         } else {
-            state.html_content.as_bytes().to_vec()
+            Bytes::from(state.html_content.as_bytes().to_vec())
         }))
         .unwrap())
 }
