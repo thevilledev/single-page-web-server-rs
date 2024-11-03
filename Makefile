@@ -60,20 +60,20 @@ dev-deps: ## Install development dependencies
 
 # Watch for changes and rebuild
 watch: ## Watch for changes and rebuild
-	cargo watch -x run
+	$(CARGO) watch -x run
 
 # Analyze binary size
 bloat: ## Analyze binary size
-	cargo bloat --release
+	$(CARGO) bloat --release
 
 # Production release build with optimizations
 build-prod: ## Create optimized production build
-	RUSTFLAGS="-C target-cpu=native -C opt-level=3" cargo build --release
+	RUSTFLAGS="-C target-cpu=native -C opt-level=3" $(CARGO) build --release
 	strip target/release/$(BINARY_NAME)
 
 release-dry-run: ## Test the release process
-	cargo install cargo-dist
-	cargo dist plan
+	$(CARGO) install cargo-dist
+	$(CARGO) dist plan
 
 release: ## Create and publish a new release
 	@if [ -z "$(VERSION)" ]; then \
@@ -87,3 +87,6 @@ release: ## Create and publish a new release
 	@echo "Creating release $(VERSION)"
 	@git tag -a v$(VERSION) -m "Release v$(VERSION)"
 	@git push origin v$(VERSION)
+
+bench:
+	$(CARGO) bench
