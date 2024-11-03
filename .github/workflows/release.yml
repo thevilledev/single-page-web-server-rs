@@ -12,8 +12,6 @@ on:
 jobs:
   create-release:
     runs-on: ubuntu-latest
-    outputs:
-      upload_url: ${{ steps.create_release.outputs.upload_url }}
     steps:
       - uses: actions/checkout@v4
       - name: Create Release
@@ -55,18 +53,20 @@ jobs:
       - name: Install Rust toolchain
         shell: bash
         run: |
-          rustup toolchain install ${{ matrix.target }} --component clippy
+          rustup default stable
+          rustup target add ${{ matrix.target }}
 
       - name: Build
         shell: bash
         run: |
           cargo build --release --target ${{ matrix.target }}
 
-      - name: Rename binary
+      - name: Rename and strip binary
         shell: bash
         run: |
           cd ./target/${{ matrix.target }}/release
           cp "${{ matrix.binary_name }}" "${{ matrix.asset_name }}"
+          strip "${{ matrix.asset_name }}"
 
       - name: Upload Release Asset
         uses: softprops/action-gh-release@v1
