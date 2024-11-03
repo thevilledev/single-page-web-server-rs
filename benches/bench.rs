@@ -1,8 +1,4 @@
-#[macro_use]
-extern crate bencher;
-
-use bencher::Bencher;
-
+use criterion::{criterion_group, criterion_main, Criterion};
 use hyper::Client;
 use single_page_web_server_rs::{cli::Args, server::run_server};
 use std::fs;
@@ -10,10 +6,10 @@ use std::time::Duration;
 use tempfile::NamedTempFile;
 use tokio::time::sleep;
 
-fn bench_server_response_time(b: &mut Bencher) {
+fn benchmark_server_response(c: &mut Criterion) {
     let runtime = tokio::runtime::Runtime::new().unwrap();
     
-    // Setup server (similar to other tests)
+    // Setup server
     let temp_file = runtime.block_on(async {
         let file = NamedTempFile::new().unwrap();
         fs::write(&file, "<html><body>Bench Test</body></html>").unwrap();
@@ -44,14 +40,14 @@ fn bench_server_response_time(b: &mut Bencher) {
     let client = Client::new();
     let url: hyper::Uri = format!("http://127.0.0.1:{}", test_port).parse().unwrap();
 
-
-    // Benchmark the request
-    b.iter(|| {
-        runtime.block_on(async {
-            let response = client.get(url.clone()).await.unwrap();
-            assert_eq!(response.status(), 200);
-            let _body = hyper::body::to_bytes(response.into_body()).await.unwrap();
-        });
+    c.bench_function("server_response_time", |b| {
+        b.iter(|| {
+            runtime.block_on(async {
+                let response = client.get(url.clone()).await.unwrap();
+                assert_eq!(response.status(), 200);
+                let _body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+            })
+        })
     });
 
     // Cleanup
@@ -60,5 +56,5 @@ fn bench_server_response_time(b: &mut Bencher) {
     });
 }
 
-benchmark_group!(benches, bench_server_response_time);
-benchmark_main!(benches);
+criterion_group!(benches, benchmark_server_response);
+criterion_main!(benches);
