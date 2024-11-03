@@ -31,3 +31,8 @@ installers = ["shell", "powershell"]
 tokio = { version = "1.0", features = ["full"] }
 tempfile = "3.2"
 temp-env = "0.3"
+bencher = "0.1.5"
+
+[[bench]]
+name = "bench"
+harness = false
