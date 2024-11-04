@@ -13,6 +13,7 @@ use tokio::signal;
 use tracing::{info, error};
 
 pub use crate::cli::Args;
+pub use crate::metrics::{Metrics, run_metrics_server};
 
 #[repr(align(64))]
 pub struct AppState {
@@ -46,7 +47,14 @@ fn compress_content(content: &str) -> Vec<u8> {
     encoder.finish().unwrap()
 }
 
-pub async fn handle_request(req: Request<Body>, state: Arc<AppState>) -> Result<Response<Body>, Infallible> {
+pub async fn handle_request(
+    req: Request<Body>, 
+    state: Arc<AppState>,
+    metrics: Arc<Metrics>,
+) -> Result<Response<Body>, Infallible> {
+    let start = std::time::Instant::now();
+    metrics.record_request(req.method().as_str());
+
     // Check If-None-Match header
     if let Some(if_none_match) = req.headers().get("if-none-match") {
         if if_none_match.as_bytes() == state.etag.as_bytes() {
@@ -78,16 +86,38 @@ pub async fn handle_request(req: Request<Body>, state: Arc<AppState>) -> Result<
         builder = builder.header("Content-Encoding", "gzip");
     }
 
-    Ok(builder
+    let response = builder
         .body(Body::from(if use_compression {
             state.compressed_content.clone()
         } else {
             state.uncompressed_content.clone()
         }))
-        .unwrap())
+        .unwrap();
+
+    metrics.record_response(
+        req.method().as_str(),
+        response.status().as_u16(),
+        start
+    );
+
+    Ok(response)
 }
 
 pub async fn run_server(args: Args) -> Result<(), Box<dyn std::error::Error>> {
+    let metrics = Arc::new(Metrics::new());
+    
+    // Start metrics server
+    let metrics_addr: SocketAddr = format!("{}:{}", args.addr, args.metrics_port)
+        .parse()
+        .expect("Failed to parse metrics address");
+    
+    let metrics_clone = metrics.clone();
+    tokio::spawn(async move {
+        if let Err(e) = run_metrics_server(metrics_clone, metrics_addr).await {
+            error!("Metrics server error: {}", e);
+        }
+    });
+
     // Read the HTML file at startup
     let html_content = std::fs::read_to_string(&args.index_path)
         .map_err(|e| {
@@ -117,9 +147,10 @@ pub async fn run_server(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     // Create the service
     let make_svc = make_service_fn(move |_conn| {
         let state = state.clone();
+        let metrics = metrics.clone();
         async move {
             Ok::<_, Infallible>(service_fn(move |req| {
-                handle_request(req, state.clone())
+                handle_request(req, state.clone(), metrics.clone())
             }))
         }
     });
@@ -149,7 +180,7 @@ pub async fn run_server(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-async fn shutdown_signal() {
+pub async fn shutdown_signal() {
     let ctrl_c = async {
         signal::ctrl_c()
             .await
