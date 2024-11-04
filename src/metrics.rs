@@ -19,6 +19,12 @@ pub struct Metrics {
     registry: prometheus::Registry,
 }
 
+impl Default for Metrics {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Metrics {
     pub fn new() -> Self {
         let meter = opentelemetry::global::meter("http_server");
