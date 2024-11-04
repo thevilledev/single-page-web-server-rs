@@ -14,4 +14,8 @@ pub struct Args {
     /// Address to bind to
     #[arg(long, default_value = "127.0.0.1", env = "WEB_ADDR")]
     pub addr: String,
+
+    /// Metrics server port
+    #[arg(long, default_value = "3001", env="METRICS_PORT")]
+    pub metrics_port: u16,
 }

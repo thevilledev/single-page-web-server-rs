@@ -6,7 +6,7 @@ use std::time::Duration;
 use tempfile::NamedTempFile;
 use tokio::time::sleep;
 
-use single_page_web_server_rs::{cli::Args, server::{AppState, run_server, handle_request}};
+use single_page_web_server_rs::{cli::Args, server::{AppState, run_server, handle_request}, metrics};
 use hyper::Server;
 use hyper::service::{make_service_fn, service_fn};
 use std::convert::Infallible;
@@ -26,6 +26,7 @@ async fn test_server_run() -> Result<(), Box<dyn std::error::Error>> {
             index_path: temp_file.path().to_str().unwrap().to_string(),
             port: 3000,
             addr: "127.0.0.1".to_string(),
+            metrics_port: 13001,
         };
         run_server(args).await.unwrap();
     });
@@ -70,17 +71,20 @@ async fn test_server_basic_functionality() -> Result<(), Box<dyn std::error::Err
             index_path: temp_file.path().to_str().unwrap().to_string(),
             port: test_port,
             addr: "127.0.0.1".to_string(),
+            metrics_port: 13001,
         };
 
         let html_content = fs::read_to_string(&args.index_path).unwrap();
         let state = Arc::new(AppState::new(html_content));
+        let metrics = Arc::new(metrics::Metrics::new());
         
         let addr: SocketAddr = addr.parse().unwrap();
         let make_svc = make_service_fn(move |_conn| {
             let state = state.clone();
+            let metrics = metrics.clone();
             async move {
                 Ok::<_, Infallible>(service_fn(move |req| {
-                    handle_request(req, state.clone())
+                    handle_request(req, state.clone(), metrics.clone())
                 }))
             }
         });
@@ -148,17 +152,20 @@ async fn test_server_different_port_and_address() -> Result<(), Box<dyn std::err
             index_path: temp_file.path().to_str().unwrap().to_string(),
             port: test_port,
             addr: "127.0.0.1".to_string(),
+            metrics_port: 13001,
         };
 
         let html_content = fs::read_to_string(&args.index_path).unwrap();
         let state = Arc::new(AppState::new(html_content));
+        let metrics = Arc::new(metrics::Metrics::new());
         
         let addr: SocketAddr = addr.parse().unwrap();
         let make_svc = make_service_fn(move |_conn| {
             let state = state.clone();
+            let metrics = metrics.clone();
             async move {
                 Ok::<_, Infallible>(service_fn(move |req| {
-                    handle_request(req, state.clone())
+                    handle_request(req, state.clone(), metrics.clone())
                 }))
             }
         });
@@ -192,6 +199,7 @@ async fn test_server_invalid_html_file() {
         index_path: "nonexistent.html".to_string(),
         port: 3003,
         addr: "127.0.0.1".to_string(),
+        metrics_port: 13001,
     };
 
     let result = fs::read_to_string(&args.index_path);
@@ -213,17 +221,20 @@ async fn test_server_etag_caching() -> Result<(), Box<dyn std::error::Error>> {
             index_path: temp_file.path().to_str().unwrap().to_string(),
             port: test_port,
             addr: "127.0.0.1".to_string(),
+            metrics_port: 13001,
         };
 
         let html_content = fs::read_to_string(&args.index_path).unwrap();
         let state = Arc::new(AppState::new(html_content));
+        let metrics = Arc::new(metrics::Metrics::new());
         
         let addr: SocketAddr = addr.parse().unwrap();
         let make_svc = make_service_fn(move |_conn| {
             let state = state.clone();
+            let metrics = metrics.clone();
             async move {
                 Ok::<_, Infallible>(service_fn(move |req| {
-                    handle_request(req, state.clone())
+                    handle_request(req, state.clone(), metrics.clone())
                 }))
             }
         });
