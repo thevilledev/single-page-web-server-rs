@@ -65,19 +65,22 @@ async fn test_server_basic_functionality() -> Result<(), Box<dyn std::error::Err
 
     // Start server in background task
     let test_port = 3001;
+    let metrics_port = 13001;
     let addr = format!("127.0.0.1:{}", test_port);
-    let server_handle = tokio::spawn(async move {
-        let args = Args {
-            index_path: temp_file.path().to_str().unwrap().to_string(),
-            port: test_port,
-            addr: "127.0.0.1".to_string(),
-            metrics_port: 13001,
-        };
+    let metrics_addr = format!("127.0.0.1:{}", metrics_port).parse()?;
 
-        let html_content = fs::read_to_string(&args.index_path).unwrap();
-        let state = Arc::new(AppState::new(html_content));
-        let metrics = Arc::new(metrics::Metrics::new());
-        
+    let html_content = fs::read_to_string(&temp_file.path().to_str().unwrap())?;
+    let state = Arc::new(AppState::new(html_content));
+    let metrics = Arc::new(metrics::Metrics::new());
+
+    // Start metrics server
+    let metrics_clone = metrics.clone();
+    let metrics_handle = tokio::spawn(async move {
+        metrics::run_metrics_server(metrics_clone, metrics_addr).await.unwrap();
+    });
+
+    // Start main server
+    let server_handle = tokio::spawn(async move {
         let addr: SocketAddr = addr.parse().unwrap();
         let make_svc = make_service_fn(move |_conn| {
             let state = state.clone();
@@ -95,7 +98,7 @@ async fn test_server_basic_functionality() -> Result<(), Box<dyn std::error::Err
         server.await.unwrap();
     });
 
-    // Give the server a moment to start
+    // Give the servers a moment to start
     sleep(Duration::from_millis(100)).await;
 
     // Create a client
@@ -131,7 +134,22 @@ async fn test_server_basic_functionality() -> Result<(), Box<dyn std::error::Err
     // Verify content matches
     assert_eq!(body_string, test_content);
 
-    // Clean up
+    // Verify metrics
+    let metrics_response = client
+        .get(format!("http://127.0.0.1:{}/metrics", metrics_port).parse()?)
+        .await?;
+
+    assert_eq!(metrics_response.status(), 200);
+    let metrics_body = hyper::body::to_bytes(metrics_response.into_body()).await?;
+    let metrics_str = String::from_utf8(metrics_body.to_vec())?;
+
+    // Verify request was counted in metrics
+    assert!(metrics_str.contains("http_requests_total{method=\"GET\"} 1"));
+    assert!(metrics_str.contains("method=\"GET\""));
+    assert!(metrics_str.contains("http_request_duration_seconds"));
+
+    // Clean up both servers
+    metrics_handle.abort();
     server_handle.abort();
 
     Ok(())
