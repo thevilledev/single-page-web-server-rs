@@ -13,11 +13,12 @@ $ cargo run -- --help
 Usage: single-page-web-server-rs [OPTIONS]
 
 Options:
-      --index-path <INDEX_PATH>  Path to the index HTML file [env: WEB_INDEX_PATH=] [default: index.html]
-      --port <PORT>              Port to listen on [env: WEB_PORT=] [default: 3000]
-      --addr <ADDR>              Address to bind to [env: WEB_ADDR=] [default: 127.0.0.1]
-  -h, --help                     Print help
-  -V, --version                  Print version
+      --index-path <INDEX_PATH>      Path to the index HTML file [env: WEB_INDEX_PATH=] [default: index.html]
+      --port <PORT>                  Port to listen on [env: WEB_PORT=] [default: 3000]
+      --addr <ADDR>                  Address to bind to [env: WEB_ADDR=] [default: 127.0.0.1]
+      --metrics-port <METRICS_PORT>  Metrics server port [env: METRICS_PORT=] [default: 3001]
+  -h, --help                         Print help
+  -V, --version                      Print version
   ```
 
 Examples:
@@ -30,6 +31,12 @@ Server running on http://0.0.0.0:8080
 ```bash
 $ curl http://localhost:8080
 foo
+```
+
+Query metrics:
+
+```bash
+$ curl http://localhost:3001/metrics
 ```
 
 ## Pre-built binaries
