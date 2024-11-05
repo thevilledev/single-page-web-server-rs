@@ -102,6 +102,35 @@ impl Metrics {
         self.prom_request_duration.with_label_values(&[method, &status.to_string()]).observe(duration);
         self.prom_requests_in_flight.with_label_values(&[method]).dec();
     }
+
+    /// Returns a vector of metric families from the Prometheus registry
+    pub fn get_metrics(&self) -> Vec<prometheus::proto::MetricFamily> {
+        self.registry.gather()
+    }
+
+    /// Returns an iterator over metrics with helper methods to find specific metrics
+    pub fn metrics_iter(&self) -> MetricsIterator {
+        MetricsIterator {
+            metrics: self.get_metrics()
+        }
+    }
+}
+
+/// Helper struct to iterate and find metrics easily
+pub struct MetricsIterator {
+    metrics: Vec<prometheus::proto::MetricFamily>
+}
+
+impl MetricsIterator {
+    /// Find a metric by name
+    pub fn find_metric(&self, name: &str) -> Option<&prometheus::proto::MetricFamily> {
+        self.metrics.iter().find(|m| m.get_name() == name)
+    }
+
+    /// Get all metrics
+    pub fn all(&self) -> &[prometheus::proto::MetricFamily] {
+        &self.metrics
+    }
 }
 
 async fn metrics_handler(metrics: Arc<Metrics>) -> std::result::Result<Response<Body>, Infallible> {
