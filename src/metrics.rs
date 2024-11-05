@@ -133,16 +133,25 @@ impl MetricsIterator {
     }
 }
 
-async fn metrics_handler(metrics: Arc<Metrics>) -> std::result::Result<Response<Body>, Infallible> {
-    let encoder = TextEncoder::new();
-    let metric_families = metrics.registry.gather();
-    let mut buffer = Vec::new();
-    encoder.encode(&metric_families, &mut buffer).unwrap();
+async fn metrics_handler(req: Request<Body>, metrics: Arc<Metrics>) -> std::result::Result<Response<Body>, Infallible> {
+    // Only respond to /metrics path
+    match req.uri().path() {
+        "/metrics" => {
+            let encoder = TextEncoder::new();
+            let metric_families = metrics.registry.gather();
+            let mut buffer = Vec::new();
+            encoder.encode(&metric_families, &mut buffer).unwrap();
 
-    Ok(Response::builder()
-        .header("Content-Type", "text/plain")
-        .body(Body::from(buffer))
-        .unwrap())
+            Ok(Response::builder()
+                .header("Content-Type", "text/plain")
+                .body(Body::from(buffer))
+                .unwrap())
+        }
+        _ => Ok(Response::builder()
+            .status(404)
+            .body(Body::from("Not Found"))
+            .unwrap())
+    }
 }
 
 pub async fn run_metrics_server(metrics: Arc<Metrics>, addr: SocketAddr) -> std::result::Result<(), Box<dyn std::error::Error>> {
@@ -150,8 +159,8 @@ pub async fn run_metrics_server(metrics: Arc<Metrics>, addr: SocketAddr) -> std:
     let make_svc = make_service_fn(move |_conn| {
         let metrics = metrics.clone();
         async move {
-            Ok::<_, Infallible>(service_fn(move |_req: Request<Body>| {
-                metrics_handler(metrics.clone())
+            Ok::<_, Infallible>(service_fn(move |req: Request<Body>| {
+                metrics_handler(req, metrics.clone())
             }))
         }
     });
