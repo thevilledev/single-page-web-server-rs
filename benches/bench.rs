@@ -25,6 +25,7 @@ fn benchmark_server_response(c: &mut Criterion) {
             port: test_port,
             addr: "127.0.0.1".to_string(),
             metrics_port: 3001,
+            tls: false,
         };
         
         run_server(args)

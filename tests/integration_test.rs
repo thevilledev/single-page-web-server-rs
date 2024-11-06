@@ -27,6 +27,7 @@ async fn test_server_run() -> Result<(), Box<dyn std::error::Error>> {
             port: 3000,
             addr: "127.0.0.1".to_string(),
             metrics_port: 13001,
+            tls: false,
         };
         run_server(args).await.unwrap();
     });
@@ -174,6 +175,7 @@ async fn test_server_different_port_and_address() -> Result<(), Box<dyn std::err
             port: test_port,
             addr: "127.0.0.1".to_string(),
             metrics_port: 13001,
+            tls: false,
         };
 
         let html_content = fs::read_to_string(&args.index_path).unwrap();
@@ -221,6 +223,7 @@ async fn test_server_invalid_html_file() {
         port: 3003,
         addr: "127.0.0.1".to_string(),
         metrics_port: 13001,
+        tls: false,
     };
 
     let result = fs::read_to_string(&args.index_path);
@@ -243,6 +246,7 @@ async fn test_server_etag_caching() -> Result<(), Box<dyn std::error::Error>> {
             port: test_port,
             addr: "127.0.0.1".to_string(),
             metrics_port: 13001,
+            tls: false,
         };
 
         let html_content = fs::read_to_string(&args.index_path).unwrap();

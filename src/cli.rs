@@ -18,4 +18,8 @@ pub struct Args {
     /// Metrics server port
     #[arg(long, default_value = "3001", env="METRICS_PORT")]
     pub metrics_port: u16,
+
+    /// Enable TLS with self-signed certificate
+    #[arg(long, default_value= "false", env="ENABLE_TLS")]
+    pub tls: bool,
 }
