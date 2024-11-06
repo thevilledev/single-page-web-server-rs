@@ -1,4 +1,6 @@
 use std::sync::Arc;
+use std::thread;
+use tokio::time::Duration;
 
 use single_page_web_server_rs::metrics::Metrics;
 
@@ -21,18 +23,26 @@ mod tests {
 
         for _ in 0..3 {
             metrics.record_request("POST");
-            thread::sleep(Duration::from_millis(10));
+            thread::sleep(Duration::from_millis(10)); // Simulate some work
             metrics.record_response("POST", 404, std::time::Instant::now());
         }
 
+        // Add a small delay to allow metrics collection
+        thread::sleep(Duration::from_millis(100));
+
+        // Force a metrics collection
+        metrics.collect_metrics();
+
         // Gather Prometheus metrics
         let metric_families = metrics.get_metrics();
+
+        //panic!("{:?}", metric_families);
         
         // Helper function to find metric by name
         let find_metric = |name: &str| {
             metric_families.iter()
                 .find(|m| m.get_name() == name)
-                .expect(&format!("Metric {} not found", name))
+                .unwrap_or_else(|| panic!("Metric {name} not found"))
         };
 
         // Verify request counts
@@ -92,6 +102,10 @@ mod tests {
             handle.join().unwrap();
         }
 
+        // Add delay and force collection after all threads complete
+        thread::sleep(Duration::from_millis(100));
+        metrics.collect_metrics();
+
         // Verify total request count
         let metric_families = metrics.get_metrics();
         let requests_total = metric_families.iter()
@@ -125,11 +139,16 @@ fn test_metrics_iterator() {
     metrics.record_request("GET");
     metrics.record_response("GET", 200, std::time::Instant::now());
 
-    // Use the iterator
-    let iter = metrics.metrics_iter();
+    // Add delay and force collection
+    thread::sleep(Duration::from_millis(100));
+    metrics.collect_metrics();
+
+    // Use get_metrics instead of metrics_iter
+    let metric_families = metrics.get_metrics();
     
     // Find specific metric
-    let requests_total = iter.find_metric("http_requests_total")
+    let requests_total = metric_families.iter()
+        .find(|m| m.get_name() == "http_requests_total")
         .expect("http_requests_total metric should exist");
     
     // Verify the metric

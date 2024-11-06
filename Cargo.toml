@@ -19,9 +19,11 @@ clap = { version = "4.4", features = ["derive", "env"] }
 flate2 = "1.0"
 tracing = "0.1"
 tracing-subscriber = "0.3"
-opentelemetry = { version = "0.26", features = ["metrics"] }
+opentelemetry = { version = "0.24", features = ["metrics"] }
 opentelemetry-prometheus = "0.17"
+opentelemetry_sdk = { version = "0.24", features = ["metrics", "rt-tokio"] }
 prometheus = "0.13"
+
 
 [workspace.metadata.dist]
 cargo-dist-version = "0.8.1"

@@ -1,7 +1,8 @@
 use hyper::{Body, Request, Response, Server};
 use hyper::service::{make_service_fn, service_fn};
 use opentelemetry::{metrics::*, KeyValue};
-use prometheus::{Encoder, TextEncoder};
+use opentelemetry_sdk::metrics::SdkMeterProvider;
+use prometheus::{ Registry, Encoder};
 use std::convert::Infallible;
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -13,10 +14,8 @@ pub struct Metrics {
     requests_total: Counter<u64>,
     requests_in_flight: UpDownCounter<i64>,
     request_duration: Histogram<f64>,
-    prom_requests_total: prometheus::IntCounterVec,
-    prom_requests_in_flight: prometheus::IntGaugeVec,
-    prom_request_duration: prometheus::HistogramVec,
-    registry: prometheus::Registry,
+    registry: Registry,
+    _provider: SdkMeterProvider,
 }
 
 impl Default for Metrics {
@@ -27,57 +26,44 @@ impl Default for Metrics {
 
 impl Metrics {
     pub fn new() -> Self {
-        let meter = opentelemetry::global::meter("http_server");
-        let registry = prometheus::Registry::new();
-        
-        // Create Prometheus metrics with labels
-        let prom_requests_total = prometheus::IntCounterVec::new(
-            prometheus::Opts::new("http_requests_total", "Total number of HTTP requests"),
-            &["method"]
-        ).unwrap();
-    
-        let prom_requests_in_flight = prometheus::IntGaugeVec::new(
-            prometheus::Opts::new("http_requests_in_flight", "Number of HTTP requests currently in flight"),
-            &["method"]
-        ).unwrap();
-    
-        let prom_request_duration = prometheus::HistogramVec::new(
-            prometheus::HistogramOpts::new(
-                "http_request_duration_seconds",
-                "HTTP request duration in seconds",
-            ),
-            &["method", "status"]
-        ).unwrap();
-        
-        // Register metrics with Prometheus
-        registry.register(Box::new(prom_requests_total.clone())).unwrap();
-        registry.register(Box::new(prom_requests_in_flight.clone())).unwrap();
-        registry.register(Box::new(prom_request_duration.clone())).unwrap();
+        // Create a custom registry
+        let registry = Registry::new();
 
-        // Create OpenTelemetry metrics
-        let otel_requests_total = meter
-            .u64_counter("http_requests_total")
+        // Create a new prometheus exporter with the custom registry
+        let exporter = opentelemetry_prometheus::exporter()
+            .with_registry(registry.clone())
+            .build()
+            .unwrap();
+
+        // Create a new meter provider using a reference to the exporter
+        let provider = SdkMeterProvider::builder()
+            .with_reader(exporter)
+            .build();
+
+        // Create a meter from the provider
+        let meter = provider.meter("single_web_page_server_rs");
+
+        let requests_total = meter
+            .u64_counter("http_requests")
             .with_description("Total number of HTTP requests")
             .init();
 
-        let otel_requests_in_flight = meter
+        let requests_in_flight = meter
             .i64_up_down_counter("http_requests_in_flight")
             .with_description("Number of HTTP requests currently in flight")
             .init();
 
-        let otel_request_duration = meter
+        let request_duration = meter
             .f64_histogram("http_request_duration_seconds")
             .with_description("HTTP request duration in seconds")
             .init();
 
         Self {
-            requests_total: otel_requests_total,
-            requests_in_flight: otel_requests_in_flight,
-            request_duration: otel_request_duration,
-            prom_requests_total,
-            prom_requests_in_flight,
-            prom_request_duration,
+            requests_total,
+            requests_in_flight,
+            request_duration,
             registry,
+            _provider: provider,
         }
     }
 
@@ -85,61 +71,37 @@ impl Metrics {
         let attributes = &[KeyValue::new("method", method.to_string())];
         self.requests_total.add(1, attributes);
         self.requests_in_flight.add(1, attributes);
-        // Update Prometheus metrics with labels
-        self.prom_requests_total.with_label_values(&[method]).inc();
-        self.prom_requests_in_flight.with_label_values(&[method]).inc();
     }
 
     pub fn record_response(&self, method: &str, status: u16, start: std::time::Instant) {
-        let attributes = &[
+        let attributes_duration = &[
             KeyValue::new("method", method.to_string()),
             KeyValue::new("status", status.to_string()),
         ];
+        let attributes_in_flight = &[
+            KeyValue::new("method", method.to_string()),
+        ];
         let duration = start.elapsed().as_secs_f64();
-        self.request_duration.record(duration, attributes);
-        self.requests_in_flight.add(-1, attributes);
-        // Update Prometheus metrics with labels
-        self.prom_request_duration.with_label_values(&[method, &status.to_string()]).observe(duration);
-        self.prom_requests_in_flight.with_label_values(&[method]).dec();
+        self.request_duration.record(duration, attributes_duration);
+        self.requests_in_flight.add(-1, attributes_in_flight);
     }
 
-    /// Returns a vector of metric families from the Prometheus registry
     pub fn get_metrics(&self) -> Vec<prometheus::proto::MetricFamily> {
         self.registry.gather()
     }
 
-    /// Returns an iterator over metrics with helper methods to find specific metrics
-    pub fn metrics_iter(&self) -> MetricsIterator {
-        MetricsIterator {
-            metrics: self.get_metrics()
-        }
-    }
-}
-
-/// Helper struct to iterate and find metrics easily
-pub struct MetricsIterator {
-    metrics: Vec<prometheus::proto::MetricFamily>
-}
-
-impl MetricsIterator {
-    /// Find a metric by name
-    pub fn find_metric(&self, name: &str) -> Option<&prometheus::proto::MetricFamily> {
-        self.metrics.iter().find(|m| m.get_name() == name)
-    }
-
-    /// Get all metrics
-    pub fn all(&self) -> &[prometheus::proto::MetricFamily] {
-        &self.metrics
+    pub fn collect_metrics(&self) {
+        // Force a collection of metrics
+        _ = self._provider.force_flush();
     }
 }
 
 async fn metrics_handler(req: Request<Body>, metrics: Arc<Metrics>) -> std::result::Result<Response<Body>, Infallible> {
-    // Only respond to /metrics path
     match req.uri().path() {
         "/metrics" => {
-            let encoder = TextEncoder::new();
-            let metric_families = metrics.registry.gather();
+            let metric_families = metrics.get_metrics();
             let mut buffer = Vec::new();
+            let encoder = prometheus::TextEncoder::new();
             encoder.encode(&metric_families, &mut buffer).unwrap();
 
             Ok(Response::builder()
@@ -155,7 +117,6 @@ async fn metrics_handler(req: Request<Body>, metrics: Arc<Metrics>) -> std::resu
 }
 
 pub async fn run_metrics_server(metrics: Arc<Metrics>, addr: SocketAddr) -> std::result::Result<(), Box<dyn std::error::Error>> {
-    // Create the service
     let make_svc = make_service_fn(move |_conn| {
         let metrics = metrics.clone();
         async move {
@@ -165,7 +126,6 @@ pub async fn run_metrics_server(metrics: Arc<Metrics>, addr: SocketAddr) -> std:
         }
     });
 
-    // Create and configure the server
     let server = Server::bind(&addr)
         .http1_keepalive(true)
         .tcp_nodelay(true)
@@ -173,10 +133,8 @@ pub async fn run_metrics_server(metrics: Arc<Metrics>, addr: SocketAddr) -> std:
 
     info!("Metrics server running on http://{}/metrics", addr);
 
-    // Handle graceful shutdown
     let graceful = server.with_graceful_shutdown(shutdown_signal());
 
-    // Run the server
     if let Err(e) = graceful.await {
         error!("Server error: {}", e);
         return Err(e.into());
@@ -184,4 +142,4 @@ pub async fn run_metrics_server(metrics: Arc<Metrics>, addr: SocketAddr) -> std:
 
     info!("Metrics server shutdown complete");
     Ok(())
-} 
+}

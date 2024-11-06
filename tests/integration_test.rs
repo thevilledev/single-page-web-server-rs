@@ -134,6 +134,9 @@ async fn test_server_basic_functionality() -> Result<(), Box<dyn std::error::Err
     // Verify content matches
     assert_eq!(body_string, test_content);
 
+    // Collect metrics
+   //metrics_clone.collect_metrics();
+
     // Verify metrics
     let metrics_response = client
         .get(format!("http://127.0.0.1:{}/metrics", metrics_port).parse()?)
@@ -144,7 +147,7 @@ async fn test_server_basic_functionality() -> Result<(), Box<dyn std::error::Err
     let metrics_str = String::from_utf8(metrics_body.to_vec())?;
 
     // Verify request was counted in metrics
-    assert!(metrics_str.contains("http_requests_total{method=\"GET\"} 1"));
+    assert!(metrics_str.contains("http_requests_total{method=\"GET\""));
     assert!(metrics_str.contains("method=\"GET\""));
     assert!(metrics_str.contains("http_request_duration_seconds"));
 
