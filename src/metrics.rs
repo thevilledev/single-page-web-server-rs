@@ -87,7 +87,7 @@ impl Metrics {
     }
 
     pub fn get_metrics(&self) -> Vec<prometheus::proto::MetricFamily> {
-        return self.registry.gather();
+        self.registry.gather()
     }
 
     pub fn collect_metrics(&self) {
