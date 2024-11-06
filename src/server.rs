@@ -71,7 +71,8 @@ pub async fn handle_request(
         .and_then(|val| val.to_str().ok())
         .map_or(false, |val| val.contains("gzip"));
 
-    let mut builder = Response::builder()
+    // Preallocate response builder with common headers
+    let response = Response::builder()
         .header("Content-Type", "text/html")
         .header("Cache-Control", "public, max-age=3600, must-revalidate")
         .header("ETag", state.etag.as_bytes())
@@ -79,14 +80,8 @@ pub async fn handle_request(
             state.compressed_content_length
         } else {
             state.uncompressed_content_length
-        });
-
-    // Add compression header if used
-    if use_compression {
-        builder = builder.header("Content-Encoding", "gzip");
-    }
-
-    let response = builder
+        })
+        .header("Content-Encoding", if use_compression { "gzip" } else { "identity" })
         .body(Body::from(if use_compression {
             state.compressed_content.clone()
         } else {
