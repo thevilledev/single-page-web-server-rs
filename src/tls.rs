@@ -16,7 +16,7 @@ impl TlsConfig {
         // Generate certificate parameters
         let mut params = CertificateParams::new(vec!["localhost".to_string()]);
         params.distinguished_name.push(DnType::CommonName, "localhost");
-        params.distinguished_name.push(DnType::OrganizationName, "Development");
+        params.distinguished_name.push(DnType::OrganizationName, "single-web-page-server-rs");
         params.subject_alt_names = vec![
             SanType::DnsName("localhost".to_string()),
             SanType::IpAddress(std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1))),
