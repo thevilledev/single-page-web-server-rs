@@ -49,4 +49,8 @@ impl TlsConfig {
             server_config: Arc::new(server_config),
         })
     }
+
+    pub fn into_server_config(self) -> Arc<rustls::ServerConfig> {
+        self.server_config
+    }
 } 
