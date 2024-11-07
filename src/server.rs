@@ -11,6 +11,9 @@ use std::sync::Arc;
 use tokio::net::TcpSocket;
 use tokio::signal;
 use tracing::{info, error};
+use tokio_rustls::TlsAcceptor;
+use tokio::net::TcpListener;
+use async_stream::stream;
 
 pub use crate::cli::Args;
 pub use crate::metrics::{Metrics, run_metrics_server};
@@ -139,7 +142,62 @@ pub async fn run_server(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     socket.set_send_buffer_size(send_buffer_size.try_into().unwrap())?;
     socket.set_recv_buffer_size(32 * 1024)?; // Keep receive buffer modest since we expect small requests
 
-    // Create the service
+    if args.tls {
+        info!("Initializing TLS server...");
+        run_tls_server(args, addr, state, metrics).await
+    } else {
+        info!("Initializing plain server...");
+        run_plain_server(args, addr, state, metrics).await
+    }
+    
+}
+
+async fn run_tls_server(args: Args, addr: SocketAddr, state: Arc<AppState>, metrics: Arc<Metrics>) -> Result<(), Box<dyn std::error::Error>> {
+    let make_svc = make_service_fn(move |_conn| {
+        let state = state.clone();
+        let metrics = metrics.clone();
+        async move {
+            Ok::<_, Infallible>(service_fn(move |req| {
+                handle_request(req, state.clone(), metrics.clone())
+            }))
+        }
+    });
+    
+    let tls_config = crate::tls::TlsConfig::new()?.into_server_config();
+    let acceptor = TlsAcceptor::from(tls_config);
+    let listener = TcpListener::bind(addr).await?;
+    let server = Server::builder(hyper::server::accept::from_stream(stream! {
+        loop {
+            let (socket, _) = listener.accept().await?;
+            yield Ok::<_, std::io::Error>(acceptor.accept(socket).await?);
+        }
+    }));
+
+    let server = server
+        .http1_keepalive(true)
+        .http2_keep_alive_interval(Some(std::time::Duration::from_secs(5)))
+        .http2_initial_stream_window_size(2 * 1024 * 1024)
+        .http2_initial_connection_window_size(4 * 1024 * 1024)
+        .http2_adaptive_window(true)
+        .serve(make_svc);
+
+    info!("Server running on {}://{}", if args.tls { "https" } else { "http" }, addr);
+
+    // Handle graceful shutdown
+    let graceful = server.with_graceful_shutdown(shutdown_signal());
+
+    // Run the server
+    if let Err(e) = graceful.await {
+        error!("Server error: {}", e);
+        return Err(e.into());
+    }
+
+    info!("Server shutdown complete");
+    Ok(())
+}
+
+async fn run_plain_server(args: Args, addr: SocketAddr, state: Arc<AppState>, metrics: Arc<Metrics>) -> Result<(), Box<dyn std::error::Error>> {
+
     let make_svc = make_service_fn(move |_conn| {
         let state = state.clone();
         let metrics = metrics.clone();
@@ -150,17 +208,23 @@ pub async fn run_server(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    // Create and configure the server
-    let server = Server::bind(&addr)
-        .http1_keepalive(true)
-        .http2_keep_alive_interval(Some(std::time::Duration::from_secs(5)))
-        .tcp_nodelay(true)
-        .http2_initial_stream_window_size(2 * 1024 * 1024)
-        .http2_initial_connection_window_size(4 * 1024 * 1024)
-        .http2_adaptive_window(true)
-        .serve(make_svc);
+    let listener = TcpListener::bind(addr).await?;
+    let server = Server::builder(hyper::server::accept::from_stream(stream! {
+        loop {
+            let (socket, _) = listener.accept().await?;
+            yield Ok::<_, std::io::Error>(socket);
+        }
+    }));
 
-    info!("Server running on http://{}", addr);
+    let server = server
+    .http1_keepalive(true)
+    .http2_keep_alive_interval(Some(std::time::Duration::from_secs(5)))
+    .http2_initial_stream_window_size(2 * 1024 * 1024)
+    .http2_initial_connection_window_size(4 * 1024 * 1024)
+    .http2_adaptive_window(true)
+    .serve(make_svc);
+
+    info!("Server running on {}://{}", if args.tls { "https" } else { "http" }, addr);
 
     // Handle graceful shutdown
     let graceful = server.with_graceful_shutdown(shutdown_signal());
