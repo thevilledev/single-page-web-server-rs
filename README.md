@@ -17,6 +17,7 @@ Options:
       --port <PORT>                  Port to listen on [env: WEB_PORT=] [default: 3000]
       --addr <ADDR>                  Address to bind to [env: WEB_ADDR=] [default: 127.0.0.1]
       --metrics-port <METRICS_PORT>  Metrics server port [env: METRICS_PORT=] [default: 3001]
+      --tls                          Enable TLS with self-signed certificate [env: ENABLE_TLS=]
   -h, --help                         Print help
   -V, --version                      Print version
   ```
