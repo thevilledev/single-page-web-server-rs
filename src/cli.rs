@@ -16,10 +16,22 @@ pub struct Args {
     pub addr: String,
 
     /// Metrics server port
-    #[arg(long, default_value = "3001", env="METRICS_PORT")]
+    #[arg(long, default_value = "3001", env = "METRICS_PORT")]
     pub metrics_port: u16,
 
     /// Enable TLS with self-signed certificate
-    #[arg(long, default_value= "false", env="ENABLE_TLS")]
+    #[arg(long, default_value = "false", env = "ENABLE_TLS")]
     pub tls: bool,
+
+    /// Disable metrics collection and server for maximum performance
+    #[arg(long, default_value = "false", env = "DISABLE_METRICS")]
+    pub disable_metrics: bool,
+
+    /// Maximum number of concurrent connections (0 = unlimited)
+    #[arg(long, default_value_t = 0, env = "MAX_CONNECTIONS")]
+    pub max_connections: usize,
+
+    /// Enable SO_REUSEPORT for multi-core scaling (Linux only)
+    #[arg(long, default_value = "false", env = "REUSE_PORT")]
+    pub reuse_port: bool,
 }

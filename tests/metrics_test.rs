@@ -4,7 +4,6 @@ use tokio::time::Duration;
 
 use single_page_web_server_rs::metrics::Metrics;
 
-
 #[test]
 fn test_metrics_recording() {
     let metrics = Arc::new(Metrics::new());
@@ -33,17 +32,22 @@ fn test_metrics_recording() {
 
     // Helper function to find metric by name
     let find_metric = |name: &str| {
-        metric_families.iter()
+        metric_families
+            .iter()
             .find(|m| m.get_name() == name)
             .unwrap_or_else(|| panic!("Metric {name} not found"))
     };
 
     // Verify request counts
     let requests_total = find_metric("http_requests_total");
-    let get_requests = requests_total.get_metric().iter()
+    let get_requests = requests_total
+        .get_metric()
+        .iter()
         .find(|m| m.get_label().iter().any(|l| l.get_value() == "GET"))
         .expect("GET requests not found");
-    let post_requests = requests_total.get_metric().iter()
+    let post_requests = requests_total
+        .get_metric()
+        .iter()
         .find(|m| m.get_label().iter().any(|l| l.get_value() == "POST"))
         .expect("POST requests not found");
 
@@ -58,13 +62,21 @@ fn test_metrics_recording() {
 
     // Verify duration histogram
     let duration = find_metric("http_request_duration_seconds");
-    let get_200_duration = duration.get_metric().iter()
-        .find(|m| m.get_label().iter().any(|l| l.get_value() == "GET") &&
-                    m.get_label().iter().any(|l| l.get_value() == "200"))
+    let get_200_duration = duration
+        .get_metric()
+        .iter()
+        .find(|m| {
+            m.get_label().iter().any(|l| l.get_value() == "GET")
+                && m.get_label().iter().any(|l| l.get_value() == "200")
+        })
         .expect("GET 200 duration not found");
-    let post_404_duration = duration.get_metric().iter()
-        .find(|m| m.get_label().iter().any(|l| l.get_value() == "POST") &&
-                    m.get_label().iter().any(|l| l.get_value() == "404"))
+    let post_404_duration = duration
+        .get_metric()
+        .iter()
+        .find(|m| {
+            m.get_label().iter().any(|l| l.get_value() == "POST")
+                && m.get_label().iter().any(|l| l.get_value() == "404")
+        })
         .expect("POST 404 duration not found");
 
     assert!(get_200_duration.get_histogram().get_sample_count() == 5);
@@ -73,7 +85,6 @@ fn test_metrics_recording() {
 
 #[test]
 fn test_concurrent_requests() {
-
     let metrics = Arc::new(Metrics::new());
     let mut handles = vec![];
 
@@ -100,22 +111,28 @@ fn test_concurrent_requests() {
 
     // Verify total request count
     let metric_families = metrics.get_metrics();
-    let requests_total = metric_families.iter()
+    let requests_total = metric_families
+        .iter()
         .find(|m| m.get_name() == "http_requests_total")
         .unwrap();
 
-    let total_requests: u64 = requests_total.get_metric().iter()
+    let total_requests: u64 = requests_total
+        .get_metric()
+        .iter()
         .map(|m| m.get_counter().get_value() as u64)
         .sum();
 
     assert_eq!(total_requests, 10);
 
     // Verify no requests are in flight
-    let requests_in_flight = metric_families.iter()
+    let requests_in_flight = metric_families
+        .iter()
         .find(|m| m.get_name() == "http_requests_in_flight")
         .unwrap();
 
-    let total_in_flight: i64 = requests_in_flight.get_metric().iter()
+    let total_in_flight: i64 = requests_in_flight
+        .get_metric()
+        .iter()
         .map(|m| m.get_gauge().get_value() as i64)
         .sum();
 
@@ -125,7 +142,7 @@ fn test_concurrent_requests() {
 #[test]
 fn test_metrics_iterator() {
     let metrics = Arc::new(Metrics::new());
-    
+
     // Record some data
     metrics.record_request("GET");
     metrics.record_response("GET", 200, std::time::Instant::now());
@@ -138,14 +155,17 @@ fn test_metrics_iterator() {
     let metric_families = metrics.get_metrics();
 
     // Find specific metric
-    let requests_total = metric_families.iter()
+    let requests_total = metric_families
+        .iter()
         .find(|m| m.get_name() == "http_requests_total")
         .expect("http_requests_total metric should exist");
-    
+
     // Verify the metric
-    let get_requests = requests_total.get_metric().iter()
+    let get_requests = requests_total
+        .get_metric()
+        .iter()
         .find(|m| m.get_label().iter().any(|l| l.get_value() == "GET"))
         .expect("GET requests not found");
-    
+
     assert_eq!(get_requests.get_counter().get_value() as i64, 1);
 }

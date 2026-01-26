@@ -1,6 +1,6 @@
 use clap::Parser;
 
-use tracing::{info, error};
+use tracing::{error, info};
 
 use single_page_web_server_rs::{cli::Args, server::run_server};
 

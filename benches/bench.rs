@@ -1,5 +1,8 @@
-use criterion::{criterion_group, criterion_main, Criterion};
-use hyper::Client;
+use bytes::Bytes;
+use criterion::{Criterion, criterion_group, criterion_main};
+use http_body_util::{BodyExt, Full};
+use hyper_util::client::legacy::Client;
+use hyper_util::rt::TokioExecutor;
 use single_page_web_server_rs::{cli::Args, server::run_server};
 use std::fs;
 use std::time::Duration;
@@ -8,7 +11,7 @@ use tokio::time::sleep;
 
 fn benchmark_server_response(c: &mut Criterion) {
     let runtime = tokio::runtime::Runtime::new().unwrap();
-    
+
     // Setup server
     let temp_file = runtime.block_on(async {
         let file = NamedTempFile::new().unwrap();
@@ -17,20 +20,21 @@ fn benchmark_server_response(c: &mut Criterion) {
     });
 
     let test_port = 3005;
-    
+
     // Start server
     let server_handle = runtime.spawn(async move {
         let args = Args {
             index_path: temp_file.path().to_str().unwrap().to_string(),
             port: test_port,
             addr: "127.0.0.1".to_string(),
-            metrics_port: 3001,
+            metrics_port: 13006,
             tls: false,
+            disable_metrics: true, // Disable metrics for cleaner benchmarks
+            max_connections: 0,
+            reuse_port: false,
         };
-        
-        run_server(args)
-            .await
-            .unwrap();
+
+        run_server(args).await.unwrap();
     });
 
     // Give server time to start
@@ -39,7 +43,7 @@ fn benchmark_server_response(c: &mut Criterion) {
     });
 
     // Create client
-    let client = Client::new();
+    let client: Client<_, Full<Bytes>> = Client::builder(TokioExecutor::new()).build_http();
     let url: hyper::Uri = format!("http://127.0.0.1:{}", test_port).parse().unwrap();
 
     c.bench_function("server_response_time", |b| {
@@ -47,7 +51,7 @@ fn benchmark_server_response(c: &mut Criterion) {
             runtime.block_on(async {
                 let response = client.get(url.clone()).await.unwrap();
                 assert_eq!(response.status(), 200);
-                let _body = hyper::body::to_bytes(response.into_body()).await.unwrap();
+                let _body = response.into_body().collect().await.unwrap().to_bytes();
             })
         })
     });

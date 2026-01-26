@@ -1,8 +1,8 @@
 use rcgen::{Certificate, CertificateParams, DnType, SanType};
-use rustls::{ServerConfig, PrivateKey, Certificate as RustlsCert};
+use rustls::{Certificate as RustlsCert, PrivateKey, ServerConfig};
 use std::sync::Arc;
-use time::OffsetDateTime;
 use time::Duration;
+use time::OffsetDateTime;
 use tracing::info;
 
 pub struct TlsConfig {
@@ -15,8 +15,12 @@ impl TlsConfig {
     pub fn new() -> Result<Self, Box<dyn std::error::Error>> {
         // Generate certificate parameters
         let mut params = CertificateParams::new(vec!["localhost".to_string()]);
-        params.distinguished_name.push(DnType::CommonName, "localhost");
-        params.distinguished_name.push(DnType::OrganizationName, "single-web-page-server-rs");
+        params
+            .distinguished_name
+            .push(DnType::CommonName, "localhost");
+        params
+            .distinguished_name
+            .push(DnType::OrganizationName, "single-web-page-server-rs");
         params.subject_alt_names = vec![
             SanType::DnsName("localhost".to_string()),
             SanType::IpAddress(std::net::IpAddr::V4(std::net::Ipv4Addr::new(127, 0, 0, 1))),
@@ -25,7 +29,7 @@ impl TlsConfig {
         params.not_before = OffsetDateTime::now_utc();
         // set not_after to now + 365 days
         params.not_after = params.not_before + Duration::days(365);
-        
+
         // Generate certificate
         let cert = Certificate::from_params(params)?;
         let cert_pem = cert.serialize_pem()?;
@@ -53,4 +57,4 @@ impl TlsConfig {
     pub fn into_server_config(self) -> Arc<rustls::ServerConfig> {
         self.server_config
     }
-} 
+}
